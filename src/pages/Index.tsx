@@ -129,7 +129,7 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Stats Section */}
+      {/* Stats Section
       <section className="py-20 px-4 bg-gradient-secondary">
         <div className="max-w-4xl mx-auto">
           <ParallaxSection speed={0.1}>
@@ -149,9 +149,9 @@ const Index = () => {
             </div>
           </ParallaxSection>
         </div>
-      </section>
+      </section> */}
 
-      {/* CTA Section */}
+      {/* CTA Section
       <section className="py-20 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <ParallaxSection speed={0.2}>
@@ -168,7 +168,7 @@ const Index = () => {
             </Button>
           </ParallaxSection>
         </div>
-      </section>
+      </section> */}
 
       {/* Footer */}
       <footer className="border-t border-border/50 py-12 px-4">
@@ -204,7 +204,7 @@ const Index = () => {
             </div>
           </div>
           <div className="border-t border-border/50 mt-8 pt-8 text-center text-muted-foreground">
-            <p>&copy; 2024 CSE Career Compass. Built with ❤️ for students, by students.</p>
+            <p>&copy; 2025 Career Compass. Built with ❤️ for students, by students.</p>
           </div>
         </div>
       </footer>

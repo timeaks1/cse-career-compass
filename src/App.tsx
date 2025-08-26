@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import AddExperience from "./pages/AddExperience";
 import ViewExperiences from "./pages/ViewExperiences";
 import NotFound from "./pages/NotFound";
+import "react-quill/dist/quill.snow.css";
 
 const queryClient = new QueryClient();
 

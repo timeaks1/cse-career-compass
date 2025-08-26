@@ -1,56 +1,89 @@
-import { useState, useEffect } from "react";
+// pages/ViewExperiences.tsx
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, Search, Filter, Calendar, Building, User, Award } from "lucide-react";
+import {
+  ArrowLeft,
+  Search,
+  Filter,
+  Calendar,
+  Building,
+  User,
+  Award,
+  Edit2
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { GlassCard } from "@/components/GlassCard";
 import { supabase } from "@/integrations/supabase/client";
+import DOMPurify from "dompurify";
 
 interface Experience {
   id: string;
   company_name: string;
-  experience_type: string;
-  assessment_type: string;
+  experience_type: string; // e.g. 'intern' | 'placement'
+  assessment_type: string; // e.g. 'online_assessment' | 'interview'
   candidate_name: string;
   graduating_year: number;
   branch: string;
-  result: string;
+  result: string; // e.g. 'selected' | 'waitlisted' | 'rejected'
   experience_description: string;
   additional_tips?: string;
   created_at: string;
   experience_images?: { image_url: string; image_name: string }[];
 }
 
-const ViewExperiences = () => {
+/** Helper mapping between DB values and readable labels */
+const LABELS = {
+  experience_type: {
+    intern: "Internship",
+    placement: "Placement",
+  },
+  assessment_type: {
+    online_assessment: "Online Assessment",
+    interview: "Interview",
+  },
+  result: {
+    selected: "Selected",
+    waitlisted: "Waitlisted",
+    rejected: "Rejected",
+  },
+};
+
+const ALL_VALUE = "__all"; // non-empty sentinel (Radix disallows empty string as item value)
+
+const ViewExperiences: React.FC = () => {
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [filteredExperiences, setFilteredExperiences] = useState<Experience[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState({
-    company: "",
-    experienceType: "",
-    assessmentType: "",
-    result: "",
-    graduatingYear: "",
-    branch: "",
+    company: ALL_VALUE,
+    experienceType: ALL_VALUE,
+    assessmentType: ALL_VALUE,
+    result: ALL_VALUE,
+    graduatingYear: ALL_VALUE,
+    branch: ALL_VALUE,
   });
 
   useEffect(() => {
     fetchExperiences();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     applyFilters();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [experiences, searchQuery, filters]);
 
   const fetchExperiences = async () => {
+    setLoading(true);
     try {
       const { data, error } = await supabase
         .from("experiences")
         .select(`
-          *,
+          * ,
           experience_images (
             image_url,
             image_name
@@ -59,69 +92,88 @@ const ViewExperiences = () => {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setExperiences(data || []);
-    } catch (error) {
-      console.error("Error fetching experiences:", error);
+      setExperiences((data as Experience[]) || []);
+    } catch (err) {
+      console.error("Error fetching experiences:", err);
+      setExperiences([]);
     } finally {
       setLoading(false);
     }
   };
 
   const applyFilters = () => {
-    let filtered = experiences;
+    let filtered = experiences.slice();
+    const q = searchQuery.trim().toLowerCase();
 
-    // Apply search query
-    if (searchQuery) {
-      filtered = filtered.filter((exp) =>
-        Object.values(exp).some((value) =>
-          value?.toString().toLowerCase().includes(searchQuery.toLowerCase())
-        )
-      );
+    // Search across selected textual fields
+    if (q) {
+      filtered = filtered.filter((exp) => {
+        const fieldsToSearch = [
+          exp.company_name,
+          exp.candidate_name,
+          exp.experience_description,
+          exp.branch,
+          exp.experience_type,
+          exp.assessment_type,
+          exp.result,
+        ];
+        return fieldsToSearch.some((val) => (val ?? "").toString().toLowerCase().includes(q));
+      });
     }
 
-    // Apply filters
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value) {
-        const fieldMap: { [key: string]: keyof Experience } = {
-          company: "company_name",
-          experienceType: "experience_type",
-          assessmentType: "assessment_type",
-          result: "result",
-          graduatingYear: "graduating_year",
-          branch: "branch",
-        };
-
-        const field = fieldMap[key];
-        if (field) {
-          filtered = filtered.filter((exp) => {
-            const expValue = exp[field];
-            if (key === "graduatingYear") {
-              return expValue?.toString() === value;
-            }
-            return expValue?.toString().toLowerCase().includes(value.toLowerCase());
-          });
-        }
-      }
-    });
+    // Apply filters only if not ALL_VALUE
+    if (filters.company !== ALL_VALUE) {
+      filtered = filtered.filter((exp) => (exp.company_name ?? "").toString() === filters.company);
+    }
+    if (filters.experienceType !== ALL_VALUE) {
+      filtered = filtered.filter((exp) => (exp.experience_type ?? "").toString() === filters.experienceType);
+    }
+    if (filters.assessmentType !== ALL_VALUE) {
+      filtered = filtered.filter((exp) => (exp.assessment_type ?? "").toString() === filters.assessmentType);
+    }
+    if (filters.result !== ALL_VALUE) {
+      filtered = filtered.filter((exp) => (exp.result ?? "").toString() === filters.result);
+    }
+    if (filters.graduatingYear !== ALL_VALUE) {
+      filtered = filtered.filter((exp) => exp.graduating_year?.toString() === filters.graduatingYear);
+    }
+    if (filters.branch !== ALL_VALUE) {
+      filtered = filtered.filter((exp) =>
+        (exp.branch ?? "").toString().toLowerCase().includes(filters.branch.toLowerCase())
+      );
+    }
 
     setFilteredExperiences(filtered);
   };
 
   const getResultColor = (result: string) => {
+    // Expect DB lowercase values
     switch (result) {
-      case "Selected":
-        return "bg-green-500/20 text-green-400 border-green-500/50";
-      case "Waitlisted":
-        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/50";
-      case "Rejected":
-        return "bg-red-500/20 text-red-400 border-red-500/50";
+      case "selected":
+        return "bg-green-500/20 text-green-400 border border-green-500/50";
+      case "waitlisted":
+        return "bg-yellow-500/20 text-yellow-400 border border-yellow-500/50";
+      case "rejected":
+        return "bg-red-500/20 text-red-400 border border-red-500/50";
       default:
         return "bg-muted text-muted-foreground";
     }
   };
 
   const getUniqueValues = (field: keyof Experience) => {
-    return Array.from(new Set(experiences.map((exp) => exp[field]).filter(Boolean)));
+    const set = new Set<string>();
+    experiences.forEach((exp) => {
+      const v = exp[field];
+      if (v !== undefined && v !== null && String(v).trim() !== "") set.add(String(v));
+    });
+    return Array.from(set).sort();
+  };
+
+  // sanitize + return markup for dangerouslySetInnerHTML
+  const createSanitizedMarkup = (html?: string | null) => {
+    if (!html) return { __html: "" };
+    // Basic DOMPurify sanitize. You can pass options to DOMPurify if you want to restrict tags.
+    return { __html: DOMPurify.sanitize(html) };
   };
 
   if (loading) {
@@ -144,12 +196,8 @@ const ViewExperiences = () => {
               <ArrowLeft className="mr-2 h-4 w-4" /> Back to Home
             </Link>
           </Button>
-          <h1 className="text-4xl md:text-6xl font-bold gradient-text mb-4">
-            Browse Experiences
-          </h1>
-          <p className="text-xl text-muted-foreground">
-            Learn from real student experiences across top companies
-          </p>
+          <h1 className="text-4xl md:text-6xl font-bold gradient-text mb-4">Browse Experiences</h1>
+          <p className="text-xl text-muted-foreground">Learn from real student experiences across top companies</p>
         </div>
 
         {/* Search and Filters */}
@@ -166,77 +214,95 @@ const ViewExperiences = () => {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              <Select value={filters.company} onValueChange={(value) => setFilters(prev => ({ ...prev, company: value }))}>
+              <Select
+                value={filters.company}
+                onValueChange={(value) => setFilters((p) => ({ ...p, company: value }))}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Company" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Companies</SelectItem>
+                  <SelectItem value={ALL_VALUE}>All Companies</SelectItem>
                   {getUniqueValues("company_name").map((company) => (
-                    <SelectItem key={company as string} value={company as string}>
-                      {company as string}
+                    <SelectItem key={company} value={company}>
+                      {company}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
-              <Select value={filters.experienceType} onValueChange={(value) => setFilters(prev => ({ ...prev, experienceType: value }))}>
+              <Select
+                value={filters.experienceType}
+                onValueChange={(value) => setFilters((p) => ({ ...p, experienceType: value }))}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Types</SelectItem>
-                  <SelectItem value="Intern">Internship</SelectItem>
-                  <SelectItem value="Placement">Placement</SelectItem>
+                  <SelectItem value={ALL_VALUE}>All Types</SelectItem>
+                  <SelectItem value="intern">{LABELS.experience_type.intern}</SelectItem>
+                  <SelectItem value="placement">{LABELS.experience_type.placement}</SelectItem>
                 </SelectContent>
               </Select>
 
-              <Select value={filters.assessmentType} onValueChange={(value) => setFilters(prev => ({ ...prev, assessmentType: value }))}>
+              <Select
+                value={filters.assessmentType}
+                onValueChange={(value) => setFilters((p) => ({ ...p, assessmentType: value }))}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Assessment" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Assessments</SelectItem>
-                  <SelectItem value="Online Assessment">Online Assessment</SelectItem>
-                  <SelectItem value="Interview">Interview</SelectItem>
+                  <SelectItem value={ALL_VALUE}>All Assessments</SelectItem>
+                  <SelectItem value="online_assessment">{LABELS.assessment_type.online_assessment}</SelectItem>
+                  <SelectItem value="interview">{LABELS.assessment_type.interview}</SelectItem>
                 </SelectContent>
               </Select>
 
-              <Select value={filters.result} onValueChange={(value) => setFilters(prev => ({ ...prev, result: value }))}>
+              <Select
+                value={filters.result}
+                onValueChange={(value) => setFilters((p) => ({ ...p, result: value }))}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Result" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Results</SelectItem>
-                  <SelectItem value="Selected">Selected</SelectItem>
-                  <SelectItem value="Waitlisted">Waitlisted</SelectItem>
-                  <SelectItem value="Rejected">Rejected</SelectItem>
+                  <SelectItem value={ALL_VALUE}>All Results</SelectItem>
+                  <SelectItem value="selected">{LABELS.result.selected}</SelectItem>
+                  <SelectItem value="waitlisted">{LABELS.result.waitlisted}</SelectItem>
+                  <SelectItem value="rejected">{LABELS.result.rejected}</SelectItem>
                 </SelectContent>
               </Select>
 
-              <Select value={filters.graduatingYear} onValueChange={(value) => setFilters(prev => ({ ...prev, graduatingYear: value }))}>
+              <Select
+                value={filters.graduatingYear}
+                onValueChange={(value) => setFilters((p) => ({ ...p, graduatingYear: value }))}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Year" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Years</SelectItem>
+                  <SelectItem value={ALL_VALUE}>All Years</SelectItem>
                   {getUniqueValues("graduating_year").map((year) => (
-                    <SelectItem key={year as number} value={year?.toString() || ""}>
-                      {year as number}
+                    <SelectItem key={year} value={year}>
+                      {year}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
-              <Select value={filters.branch} onValueChange={(value) => setFilters(prev => ({ ...prev, branch: value }))}>
+              <Select
+                value={filters.branch}
+                onValueChange={(value) => setFilters((p) => ({ ...p, branch: value }))}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Branch" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Branches</SelectItem>
+                  <SelectItem value={ALL_VALUE}>All Branches</SelectItem>
                   {getUniqueValues("branch").map((branch) => (
-                    <SelectItem key={branch as string} value={branch as string}>
-                      {branch as string}
+                    <SelectItem key={branch} value={branch}>
+                      {branch}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -260,9 +326,7 @@ const ViewExperiences = () => {
             <GlassCard className="text-center py-12">
               <Filter className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="text-xl font-semibold mb-2">No experiences found</h3>
-              <p className="text-muted-foreground mb-4">
-                Try adjusting your filters or search query
-              </p>
+              <p className="text-muted-foreground mb-4">Try adjusting your filters or search query</p>
               <Button asChild variant="outline">
                 <Link to="/add-experience">Be the first to share</Link>
               </Button>
@@ -280,13 +344,20 @@ const ViewExperiences = () => {
                           <h3 className="text-2xl font-bold text-primary">{experience.company_name}</h3>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          <Badge variant="outline">{experience.experience_type}</Badge>
-                          <Badge variant="outline">{experience.assessment_type}</Badge>
+                          <Badge variant="outline">
+                            {LABELS.experience_type[experience.experience_type as keyof typeof LABELS.experience_type] ??
+                              experience.experience_type}
+                          </Badge>
+                          <Badge variant="outline">
+                            {LABELS.assessment_type[experience.assessment_type as keyof typeof LABELS.assessment_type] ??
+                              experience.assessment_type}
+                          </Badge>
                           <Badge className={getResultColor(experience.result)}>
-                            {experience.result}
+                            {LABELS.result[experience.result as keyof typeof LABELS.result] ?? experience.result}
                           </Badge>
                         </div>
                       </div>
+
                       <div className="text-right space-y-1 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <User className="h-4 w-4" />
@@ -296,15 +367,25 @@ const ViewExperiences = () => {
                           <Calendar className="h-4 w-4" />
                           {experience.graduating_year} | {experience.branch}
                         </div>
+                        {/* Edit button (public edit) */}
+                        <div className="pt-2">
+                          <Button asChild size="sm" variant="outline" className="flex items-center gap-2">
+                            <Link to={`/edit-experience/${experience.id}`}>
+                              <Edit2 className="h-4 w-4 inline" /> Edit
+                            </Link>
+                          </Button>
+                        </div>
                       </div>
                     </div>
 
                     {/* Experience Description */}
                     <div className="space-y-3">
                       <h4 className="font-semibold text-foreground">Experience:</h4>
-                      <p className="text-foreground/90 leading-relaxed whitespace-pre-wrap">
-                        {experience.experience_description}
-                      </p>
+                      <div
+                        className="text-foreground/90 leading-relaxed prose max-w-none"
+                        // sanitize HTML before rendering
+                        dangerouslySetInnerHTML={createSanitizedMarkup(experience.experience_description)}
+                      />
                     </div>
 
                     {/* Additional Tips */}
@@ -313,9 +394,10 @@ const ViewExperiences = () => {
                         <h4 className="font-semibold text-accent flex items-center gap-2">
                           <Award className="h-4 w-4" /> Additional Tips:
                         </h4>
-                        <p className="text-foreground/90 leading-relaxed whitespace-pre-wrap">
-                          {experience.additional_tips}
-                        </p>
+                        <div
+                          className="text-foreground/90 leading-relaxed prose max-w-none"
+                          dangerouslySetInnerHTML={createSanitizedMarkup(experience.additional_tips)}
+                        />
                       </div>
                     )}
 
@@ -330,7 +412,7 @@ const ViewExperiences = () => {
                               src={image.image_url}
                               alt={image.image_name || `Attachment ${index + 1}`}
                               className="w-full h-32 object-cover rounded-lg border border-border/50 hover:scale-105 transition-transform cursor-pointer"
-                              onClick={() => window.open(image.image_url, '_blank')}
+                              onClick={() => window.open(image.image_url, "_blank")}
                             />
                           ))}
                         </div>

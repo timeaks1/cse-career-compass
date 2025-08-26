@@ -1,20 +1,35 @@
-import { useState } from "react";
+// pages/AddExperience.tsx
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Upload, X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import { GlassCard } from "@/components/GlassCard";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import RichTextEditor from "@/components/RichTextEditor";
 
-const AddExperience = () => {
+type PreviewItem = { file: File; preview: string };
+
+const ALLOWED_EXPERIENCE = ["intern", "placement"];
+const ALLOWED_ASSESSMENT = ["online_assessment", "interview"];
+const ALLOWED_RESULT = ["selected", "waitlisted", "rejected"];
+
+const BUCKET = "experience-images";
+
+const AddExperience: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [images, setImages] = useState<File[]>([]);
+  const [images, setImages] = useState<PreviewItem[]>([]);
   const [formData, setFormData] = useState({
     companyName: "",
     experienceType: "",
@@ -23,21 +38,55 @@ const AddExperience = () => {
     graduatingYear: "",
     branch: "",
     result: "",
-    experienceDescription: "",
-    additionalTips: "",
+    experienceDescription: "", // will contain HTML from RichTextEditor
+    additionalTips: "" // HTML too
   });
 
+  useEffect(() => {
+    return () => {
+      images.forEach((i) => URL.revokeObjectURL(i.preview));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    setImages(prev => [...prev, ...files]);
+    const newPreviews = files.map((f) => ({ file: f, preview: URL.createObjectURL(f) }));
+    setImages((prev) => [...prev, ...newPreviews]);
   };
 
   const removeImage = (index: number) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
+    setImages((prev) => {
+      const removed = prev[index];
+      if (removed) URL.revokeObjectURL(removed.preview);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const validateForm = () => {
+    if (!formData.companyName.trim()) return "Company name is required.";
+    if (!formData.candidateName.trim()) return "Your name is required.";
+    if (!formData.experienceType) return "Please select experience type.";
+    if (!formData.assessmentType) return "Please select assessment type.";
+    if (!formData.graduatingYear.trim()) return "Graduating year is required.";
+    if (!formData.branch.trim()) return "Branch is required.";
+    if (!formData.result) return "Please select result.";
+    if (!formData.experienceDescription.trim()) return "Experience description is required.";
+
+    const gy = parseInt(formData.graduatingYear, 10);
+    if (Number.isNaN(gy) || gy < 1900 || gy > 2100) return "Please enter a valid graduating year.";
+
+    if (!ALLOWED_EXPERIENCE.includes(formData.experienceType))
+      return "Invalid experience type selected.";
+    if (!ALLOWED_ASSESSMENT.includes(formData.assessmentType))
+      return "Invalid assessment type selected.";
+    if (!ALLOWED_RESULT.includes(formData.result)) return "Invalid result selected.";
+
+    return null;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -45,70 +94,130 @@ const AddExperience = () => {
     setLoading(true);
 
     try {
-      // Insert experience data
-      const { data: experience, error: experienceError } = await supabase
+      const errMsg = validateForm();
+      if (errMsg) {
+        toast({ title: "Validation error", description: errMsg, variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+
+      const graduatingYear = parseInt(formData.graduatingYear, 10);
+
+      const payload = {
+        company_name: formData.companyName.trim(),
+        experience_type: formData.experienceType,
+        assessment_type: formData.assessmentType,
+        candidate_name: formData.candidateName.trim(),
+        graduating_year: graduatingYear,
+        branch: formData.branch.trim(),
+        result: formData.result,
+        // store HTML from the editors
+        experience_description: formData.experienceDescription.trim(),
+        additional_tips: formData.additionalTips?.trim() || null
+      };
+
+      // 1) Insert main experience row and get the id
+      const { data: experienceRow, error: experienceError } = await supabase
         .from("experiences")
-        .insert([
-          {
-            company_name: formData.companyName,
-            experience_type: formData.experienceType,
-            assessment_type: formData.assessmentType,
-            candidate_name: formData.candidateName,
-            graduating_year: parseInt(formData.graduatingYear),
-            branch: formData.branch,
-            result: formData.result,
-            experience_description: formData.experienceDescription,
-            additional_tips: formData.additionalTips || null,
-          },
-        ])
+        .insert([payload])
         .select()
         .single();
 
-      if (experienceError) throw experienceError;
+      if (experienceError || !experienceRow) {
+        console.error("Experience insert error:", experienceError);
+        toast({
+          title: "Insert error",
+          description:
+            experienceError?.message ||
+            "Failed to create experience row. Check console for details.",
+          variant: "destructive"
+        });
+        throw experienceError ?? new Error("No experience row returned");
+      }
 
-      // Upload images if any
+      const experienceId = experienceRow.id;
+      if (!experienceId) {
+        console.error("No experience id returned:", experienceRow);
+        throw new Error("No experience id returned from insert");
+      }
+
+      // 2) If images exist, upload each to storage and insert metadata row
       if (images.length > 0) {
-        for (const image of images) {
-          const fileName = `${experience.id}/${Date.now()}_${image.name}`;
-          
-          const { error: uploadError } = await supabase.storage
-            .from("experience-images")
-            .upload(fileName, image);
+        const storage = supabase.storage.from(BUCKET);
 
-          if (uploadError) throw uploadError;
+        for (const item of images) {
+          const safeName = item.file.name.replace(/\s+/g, "_");
+          const filePath = `${experienceId}/${Date.now()}_${safeName}`;
 
-          const { data: publicUrl } = supabase.storage
-            .from("experience-images")
-            .getPublicUrl(fileName);
+          const { data: uploadData, error: uploadError } = await storage.upload(filePath, item.file, {
+            cacheControl: "3600",
+            upsert: false
+          });
 
-          // Insert image record
-          const { error: imageError } = await supabase
+          if (uploadError) {
+            console.error("Upload error for", filePath, uploadError);
+            toast({
+              title: "Upload failed",
+              description: uploadError.message || "Failed to upload an image.",
+              variant: "destructive"
+            });
+            throw uploadError;
+          }
+
+          const publicUrlResponse = storage.getPublicUrl(filePath);
+          // @ts-ignore
+          const publicUrl = (publicUrlResponse as any)?.data?.publicUrl ?? (publicUrlResponse as any)?.data?.publicURL ?? "";
+
+          if (!publicUrl) {
+            console.error("No public URL for", filePath, publicUrlResponse);
+            toast({
+              title: "Public URL error",
+              description: "Unable to get public URL for uploaded image.",
+              variant: "destructive"
+            });
+            throw new Error("No public URL returned");
+          }
+
+          const { data: imageInsert, error: imageInsertError } = await supabase
             .from("experience_images")
             .insert([
               {
-                experience_id: experience.id,
-                image_url: publicUrl.publicUrl,
-                image_name: image.name,
-              },
-            ]);
+                experience_id: experienceId,
+                image_url: publicUrl,
+                image_name: item.file.name
+              }
+            ])
+            .select()
+            .single();
 
-          if (imageError) throw imageError;
+          if (imageInsertError) {
+            console.error("Image metadata insert error:", imageInsertError);
+            toast({
+              title: "Image metadata save failed",
+              description: imageInsertError.message || "Failed to save image record.",
+              variant: "destructive"
+            });
+            throw imageInsertError;
+          }
+
+          try {
+            URL.revokeObjectURL(item.preview);
+          } catch {
+            /* ignore */
+          }
         }
       }
 
       toast({
-        title: "Experience shared successfully!",
-        description: "Thank you for contributing to the community.",
+        title: "Experience shared",
+        description: "Thank you for contributing to the community."
       });
 
       navigate("/view-experiences");
-    } catch (error) {
-      console.error("Error:", error);
-      toast({
-        title: "Error",
-        description: "Failed to share experience. Please try again.",
-        variant: "destructive",
-      });
+    } catch (error: any) {
+      console.error("Error in AddExperience.handleSubmit:", error);
+      const message = error?.message ?? "Failed to share experience.";
+      toast({ title: "Error", description: message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -123,9 +232,7 @@ const AddExperience = () => {
               <ArrowLeft className="mr-2 h-4 w-4" /> Back to Home
             </Link>
           </Button>
-          <h1 className="text-4xl md:text-6xl font-bold gradient-text mb-4">
-            Share Your Experience
-          </h1>
+          <h1 className="text-4xl md:text-6xl font-bold gradient-text mb-4">Share Your Experience</h1>
           <p className="text-xl text-muted-foreground">
             Help fellow students by sharing your internship or placement journey
           </p>
@@ -158,26 +265,32 @@ const AddExperience = () => {
 
               <div className="space-y-2">
                 <Label>Experience Type *</Label>
-                <Select value={formData.experienceType} onValueChange={(value) => handleInputChange("experienceType", value)}>
+                <Select
+                  value={formData.experienceType}
+                  onValueChange={(value) => handleInputChange("experienceType", value)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Intern">Internship</SelectItem>
-                    <SelectItem value="Placement">Placement</SelectItem>
+                    <SelectItem value="intern">Internship</SelectItem>
+                    <SelectItem value="placement">Placement</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
                 <Label>Assessment Type *</Label>
-                <Select value={formData.assessmentType} onValueChange={(value) => handleInputChange("assessmentType", value)}>
+                <Select
+                  value={formData.assessmentType}
+                  onValueChange={(value) => handleInputChange("assessmentType", value)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select assessment" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Online Assessment">Online Assessment</SelectItem>
-                    <SelectItem value="Interview">Interview</SelectItem>
+                    <SelectItem value="online_assessment">Online Assessment</SelectItem>
+                    <SelectItem value="interview">Interview</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -212,9 +325,9 @@ const AddExperience = () => {
                     <SelectValue placeholder="Select result" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Selected">Selected</SelectItem>
-                    <SelectItem value="Waitlisted">Waitlisted</SelectItem>
-                    <SelectItem value="Rejected">Rejected</SelectItem>
+                    <SelectItem value="selected">Selected</SelectItem>
+                    <SelectItem value="waitlisted">Waitlisted</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -222,24 +335,23 @@ const AddExperience = () => {
 
             <div className="space-y-2">
               <Label htmlFor="experienceDescription">Experience Description *</Label>
-              <Textarea
-                id="experienceDescription"
-                placeholder="Describe your experience in detail - the process, questions asked, difficulty level, etc."
+              <RichTextEditor
                 value={formData.experienceDescription}
-                onChange={(e) => handleInputChange("experienceDescription", e.target.value)}
-                rows={6}
-                required
+                onChange={(html) => handleInputChange("experienceDescription", html)}
+                placeholder="Describe your experience in detail - the process, questions asked, difficulty level, etc."
+                resourceId={null} // will upload under 'anon' prefix in editor
+                bucket={BUCKET}
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="additionalTips">Additional Tips</Label>
-              <Textarea
-                id="additionalTips"
-                placeholder="Any additional tips or advice for future candidates"
+              <RichTextEditor
                 value={formData.additionalTips}
-                onChange={(e) => handleInputChange("additionalTips", e.target.value)}
-                rows={4}
+                onChange={(html) => handleInputChange("additionalTips", html)}
+                placeholder="Any additional tips or advice for future candidates"
+                resourceId={null}
+                bucket={BUCKET}
               />
             </div>
 
@@ -264,10 +376,10 @@ const AddExperience = () => {
 
               {images.length > 0 && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {images.map((image, index) => (
+                  {images.map((item, index) => (
                     <div key={index} className="relative">
                       <img
-                        src={URL.createObjectURL(image)}
+                        src={item.preview}
                         alt={`Upload ${index + 1}`}
                         className="w-full h-24 object-cover rounded-lg"
                       />
@@ -277,6 +389,7 @@ const AddExperience = () => {
                         size="sm"
                         className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
                         onClick={() => removeImage(index)}
+                        aria-label={`Remove image ${index + 1}`}
                       >
                         <X className="h-3 w-3" />
                       </Button>
@@ -287,12 +400,7 @@ const AddExperience = () => {
             </div>
 
             <div className="flex justify-end pt-6">
-              <Button
-                type="submit"
-                disabled={loading}
-                size="lg"
-                className="bg-gradient-primary hover:glow-primary"
-              >
+              <Button type="submit" disabled={loading} size="lg" className="bg-gradient-primary hover:glow-primary">
                 {loading ? "Sharing..." : "Share Experience"}
                 <Plus className="ml-2 h-5 w-5" />
               </Button>
