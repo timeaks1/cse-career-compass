@@ -382,7 +382,7 @@ const ViewExperiences: React.FC = () => {
                     <div className="space-y-3">
                       <h4 className="font-semibold text-foreground">Experience:</h4>
                       <div
-                        className="text-foreground/90 leading-relaxed prose max-w-none"
+                        className="text-foreground/90 leading-relaxed prose prose-headings:text-white prose-p:text-gray-300 max-w-none"
                         // sanitize HTML before rendering
                         dangerouslySetInnerHTML={createSanitizedMarkup(experience.experience_description)}
                       />

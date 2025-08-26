@@ -355,7 +355,7 @@ const AddExperience: React.FC = () => {
               />
             </div>
 
-            <div className="space-y-4">
+            {/* <div className="space-y-4">
               <Label>Upload Images (Optional)</Label>
               <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
                 <input
@@ -397,7 +397,7 @@ const AddExperience: React.FC = () => {
                   ))}
                 </div>
               )}
-            </div>
+            </div> */}
 
             <div className="flex justify-end pt-6">
               <Button type="submit" disabled={loading} size="lg" className="bg-gradient-primary hover:glow-primary">

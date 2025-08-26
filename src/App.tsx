@@ -8,6 +8,7 @@ import AddExperience from "./pages/AddExperience";
 import ViewExperiences from "./pages/ViewExperiences";
 import NotFound from "./pages/NotFound";
 import "react-quill/dist/quill.snow.css";
+import EditExperience from "./pages/EditExperience";
 
 const queryClient = new QueryClient();
 
@@ -21,6 +22,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/add-experience" element={<AddExperience />} />
           <Route path="/view-experiences" element={<ViewExperiences />} />
+          <Route path="/edit-experience/:id" element={<EditExperience />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
