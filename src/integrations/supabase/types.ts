@@ -60,6 +60,7 @@ export type Database = {
           id: string
           result: string
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           additional_tips?: string | null
@@ -74,6 +75,7 @@ export type Database = {
           id?: string
           result: string
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           additional_tips?: string | null
@@ -88,6 +90,40 @@ export type Database = {
           id?: string
           result?: string
           updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          branch: string | null
+          created_at: string
+          email: string
+          graduating_year: number | null
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          branch?: string | null
+          created_at?: string
+          email: string
+          graduating_year?: number | null
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          branch?: string | null
+          created_at?: string
+          email?: string
+          graduating_year?: number | null
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

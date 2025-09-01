@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import AddExperience from "./pages/AddExperience";
 import ViewExperiences from "./pages/ViewExperiences";
 import NotFound from "./pages/NotFound";
+import Auth from "./pages/Auth";
 import "react-quill/dist/quill.snow.css";
 import EditExperience from "./pages/EditExperience";
 
@@ -20,6 +21,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/auth" element={<Auth />} />
           <Route path="/add-experience" element={<AddExperience />} />
           <Route path="/view-experiences" element={<ViewExperiences />} />
           <Route path="/edit-experience/:id" element={<EditExperience />} />

@@ -1,7 +1,7 @@
 // pages/AddExperience.tsx
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Upload, X, Plus } from "lucide-react";
+import { ArrowLeft, Upload, X, Plus, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,7 @@ import { GlassCard } from "@/components/GlassCard";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import RichTextEditor from "@/components/RichTextEditor";
+import { useAuth } from "@/hooks/useAuth";
 
 type PreviewItem = { file: File; preview: string };
 
@@ -28,6 +29,7 @@ const BUCKET = "experience-images";
 const AddExperience: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, signOut, loading: authLoading, isAuthenticated } = useAuth();
   const [loading, setLoading] = useState(false);
   const [images, setImages] = useState<PreviewItem[]>([]);
   const [formData, setFormData] = useState({
@@ -41,6 +43,27 @@ const AddExperience: React.FC = () => {
     experienceDescription: "", // will contain HTML from RichTextEditor
     additionalTips: "" // HTML too
   });
+
+  // Redirect to auth if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      navigate('/auth');
+    }
+  }, [authLoading, isAuthenticated, navigate]);
+
+  // Auto-populate candidate name from Google profile
+  useEffect(() => {
+    if (user && isAuthenticated) {
+      const name = user.user_metadata?.full_name || 
+                  user.user_metadata?.name || 
+                  user.email?.split('@')[0] || "";
+      
+      setFormData(prev => ({
+        ...prev,
+        candidateName: name
+      }));
+    }
+  }, [user, isAuthenticated]);
 
   useEffect(() => {
     return () => {
@@ -91,6 +114,17 @@ const AddExperience: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!isAuthenticated || !user) {
+      toast({
+        title: "Authentication Required",
+        description: "You must be signed in to share experiences",
+        variant: "destructive"
+      });
+      navigate('/auth');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -111,9 +145,9 @@ const AddExperience: React.FC = () => {
         graduating_year: graduatingYear,
         branch: formData.branch.trim(),
         result: formData.result,
-        // store HTML from the editors
         experience_description: formData.experienceDescription.trim(),
-        additional_tips: formData.additionalTips?.trim() || null
+        additional_tips: formData.additionalTips?.trim() || null,
+        user_id: user.id // Set the authenticated user's ID
       };
 
       // 1) Insert main experience row and get the id
@@ -164,12 +198,11 @@ const AddExperience: React.FC = () => {
             throw uploadError;
           }
 
-          const publicUrlResponse = storage.getPublicUrl(filePath);
-          // @ts-ignore
-          const publicUrl = (publicUrlResponse as any)?.data?.publicUrl ?? (publicUrlResponse as any)?.data?.publicURL ?? "";
+          const { data: urlData } = storage.getPublicUrl(filePath);
+          const publicUrl = urlData.publicUrl;
 
           if (!publicUrl) {
-            console.error("No public URL for", filePath, publicUrlResponse);
+            console.error("No public URL for", filePath, urlData);
             toast({
               title: "Public URL error",
               description: "Unable to get public URL for uploaded image.",
@@ -223,19 +256,46 @@ const AddExperience: React.FC = () => {
     }
   };
 
+  // Show loading screen while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background/80 to-primary/10">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // Redirect handled by useEffect
+  if (!isAuthenticated) {
+    return null;
+  }
+
   return (
-    <div className="min-h-screen bg-background py-8">
-      <div className="max-w-4xl mx-auto px-4">
-        <div className="mb-8">
-          <Button asChild variant="ghost" className="mb-4">
-            <Link to="/">
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back to Home
-            </Link>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background/80 to-primary/10 p-4">
+      {/* Header */}
+      <div className="max-w-4xl mx-auto mb-8">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" asChild className="glass-card">
+              <Link to="/">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Home
+              </Link>
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold gradient-text">Share Your Experience</h1>
+              <p className="text-muted-foreground">Welcome, {user?.user_metadata?.full_name || user?.email?.split('@')[0]}</p>
+            </div>
+          </div>
+          <Button
+            onClick={signOut}
+            variant="outline"
+            size="sm"
+            className="flex items-center gap-2 glass-card"
+          >
+            <LogOut className="h-4 w-4" />
+            Sign Out
           </Button>
-          <h1 className="text-4xl md:text-6xl font-bold gradient-text mb-4">Share Your Experience</h1>
-          <p className="text-xl text-muted-foreground">
-            Help fellow students by sharing your internship or placement journey
-          </p>
         </div>
 
         <GlassCard>
@@ -355,7 +415,7 @@ const AddExperience: React.FC = () => {
               />
             </div>
 
-            {/* <div className="space-y-4">
+            <div className="space-y-4">
               <Label>Upload Images (Optional)</Label>
               <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
                 <input
@@ -397,7 +457,7 @@ const AddExperience: React.FC = () => {
                   ))}
                 </div>
               )}
-            </div> */}
+            </div>
 
             <div className="flex justify-end pt-6">
               <Button type="submit" disabled={loading} size="lg" className="bg-gradient-primary hover:glow-primary">
