@@ -56,15 +56,9 @@ const RichTextEditor: React.FC<Props> = ({ value, onChange, placeholder, resourc
                   return;
                 }
 
-                const { data: urlData, error: urlError } = await supabase.storage
+                const { data: urlData } = await supabase.storage
                   .from(storageBucket)
                   .getPublicUrl(filePath);
-
-                if (urlError) {
-                  console.error("Supabase getPublicUrl error:", urlError);
-                  alert("Failed to get public URL for uploaded image.");
-                  return;
-                }
 
                 // different SDK versions use publicUrl or publicURL
                 // safe-guard to pick whichever exists
@@ -82,7 +76,7 @@ const RichTextEditor: React.FC<Props> = ({ value, onChange, placeholder, resourc
                 const range = editor?.getSelection(true);
                 const index = range?.index ?? editor?.getLength() ?? 0;
                 editor?.insertEmbed(index, "image", publicUrl);
-                editor?.setSelection((index as number) + 1);
+                editor?.setSelection({ index: (index as number) + 1, length: 0 });
               } catch (err) {
                 console.error("Image handler error", err);
                 alert("Image upload error. See console.");
