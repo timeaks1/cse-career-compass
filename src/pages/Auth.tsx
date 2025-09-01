@@ -17,11 +17,11 @@ const Auth = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         // Check if email is from IITR
-        if (session.user.email?.endsWith('@iitr.ac.in')) {
+        if (session.user.email?.endsWith('iitr.ac.in')) {
           setUser(session.user);
           navigate('/');
         } else {
-          toast.error("Only IITR email addresses (@iitr.ac.in) are allowed");
+          toast.error("Only IITR email addresses (iitr.ac.in) are allowed");
           supabase.auth.signOut();
         }
       }
@@ -32,12 +32,12 @@ const Auth = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
-          if (session.user.email?.endsWith('@iitr.ac.in')) {
+          if (session.user.email?.endsWith('iitr.ac.in')) {
             setUser(session.user);
             toast.success("Welcome to Placements IITR!");
             navigate('/');
           } else {
-            toast.error("Only IITR email addresses (@iitr.ac.in) are allowed");
+            toast.error("Only IITR email addresses (iitr.ac.in) are allowed");
             await supabase.auth.signOut();
           }
         } else if (event === 'SIGNED_OUT') {
