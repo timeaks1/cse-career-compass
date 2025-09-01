@@ -11,7 +11,7 @@ export const useAuth = () => {
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user?.email?.endsWith('@iitr.ac.in')) {
+      if (session?.user?.email?.endsWith('iitr.ac.in')) {
         setSession(session);
         setUser(session.user);
       } else if (session?.user) {
@@ -26,11 +26,11 @@ export const useAuth = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_IN' && session?.user) {
-          if (session.user.email?.endsWith('@iitr.ac.in')) {
+          if (session.user.email?.endsWith('iitr.ac.in')) {
             setSession(session);
             setUser(session.user);
           } else {
-            toast.error("Only IITR email addresses (@iitr.ac.in) are allowed");
+            toast.error("Only IITR email addresses (iitr.ac.in) are allowed");
             await supabase.auth.signOut();
           }
         } else if (event === 'SIGNED_OUT') {
