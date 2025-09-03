@@ -17,7 +17,7 @@ export const useAuth = () => {
       } else if (session?.user) {
         // Sign out if not IITR email
         supabase.auth.signOut();
-        toast.error("Only IITR email addresses are allowed");
+        toast.error("Only IITR email addresses (iitr.ac.in) are allowed");
       }
       setLoading(false);
     });

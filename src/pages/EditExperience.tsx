@@ -15,6 +15,7 @@ import {
 import { GlassCard } from "@/components/GlassCard";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import RichTextEditor from "@/components/RichTextEditor";
 
 type ExperienceRow = {
@@ -29,6 +30,7 @@ type ExperienceRow = {
   experience_description: string | null;
   additional_tips?: string | null;
   created_at: string;
+  user_id?: string | null;
   experience_images?: { id?: string; image_url: string; image_name?: string }[];
 };
 
@@ -41,6 +43,7 @@ const EditExperience: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, isAuthenticated } = useAuth();
 
   const [loading, setLoading] = useState<boolean>(true);
   const [saving, setSaving] = useState<boolean>(false);
@@ -81,6 +84,14 @@ const EditExperience: React.FC = () => {
 
       if (error) throw error;
       const row = data as ExperienceRow;
+      
+      // Check if the current user owns this experience
+      if (!isAuthenticated || user?.id !== row.user_id) {
+        toast({ title: "Access Denied", description: "You can only edit your own experiences", variant: "destructive" });
+        navigate("/view-experiences");
+        return;
+      }
+      
       setExperience(row);
 
       setFormData({
