@@ -154,34 +154,34 @@ const ViewExperiences: React.FC = () => {
             </div>
             
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              <Select value={filters.experienceType} onValueChange={(value) => setFilters(prev => ({ ...prev, experienceType: value }))}>
+              <Select value={filters.experienceType || "all"} onValueChange={(value) => setFilters(prev => ({ ...prev, experienceType: value === "all" ? "" : value }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Types</SelectItem>
+                  <SelectItem value="all">All Types</SelectItem>
                   <SelectItem value="intern">Internship</SelectItem>
                   <SelectItem value="placement">Placement</SelectItem>
                 </SelectContent>
               </Select>
 
-              <Select value={filters.assessmentType} onValueChange={(value) => setFilters(prev => ({ ...prev, assessmentType: value }))}>
+              <Select value={filters.assessmentType || "all"} onValueChange={(value) => setFilters(prev => ({ ...prev, assessmentType: value === "all" ? "" : value }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Assessment" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Assessments</SelectItem>
+                  <SelectItem value="all">All Assessments</SelectItem>
                   <SelectItem value="online_assessment">Online Assessment</SelectItem>
                   <SelectItem value="interview">Interview</SelectItem>
                 </SelectContent>
               </Select>
 
-              <Select value={filters.result} onValueChange={(value) => setFilters(prev => ({ ...prev, result: value }))}>
+              <Select value={filters.result || "all"} onValueChange={(value) => setFilters(prev => ({ ...prev, result: value === "all" ? "" : value }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Result" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Results</SelectItem>
+                  <SelectItem value="all">All Results</SelectItem>
                   <SelectItem value="selected">Selected</SelectItem>
                   <SelectItem value="waitlisted">Waitlisted</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
